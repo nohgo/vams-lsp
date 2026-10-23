@@ -30,7 +30,7 @@ elaborator or simulator. Correct project configuration matters for useful result
 Requires Rust/Cargo **1.85+**, Git, and a C compiler for the initial source build:
 
 ```sh
-cargo install --git https://github.com/nohgo/vams-lsp.git --branch main --locked
+cargo install --git https://github.com/nohgo/vams-lsp.git --branch main --locked vams-lsp
 vams-lsp --version
 ```
 
@@ -39,7 +39,8 @@ Only the installed executable is needed at runtime. It embeds the pinned parser;
 no Node, Python, Tree-sitter CLI, external lint engine, or neighboring checkout is
 needed to run it. Python is used only by tests.
 
-Rerun that command to update `main`; use `--rev <commit>` instead of `--branch main`
+The final `vams-lsp` selects this package rather than the archived upstream
+package in `vendor/`. Rerun that command to update `main`; use `--rev <commit>` instead of `--branch main`
 for a reproducible revision. If replacing a local `--path` installation, add
 `--force` once. Use `cargo uninstall vams-lsp` to remove it. The release workflow
 builds Linux x86_64 and macOS archives/checksums when a version tag is pushed;
