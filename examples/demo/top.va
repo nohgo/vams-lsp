@@ -1,0 +1,10 @@
+`include "disciplines.vah"
+
+module top(p, n);
+  inout p, n;
+  electrical p, n;
+  resistor #(.resistance(2k)) u_resistor (
+    .p(p),
+    .n(n)
+  );
+endmodule

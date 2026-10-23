@@ -1,0 +1,11 @@
+`include "disciplines.vah"
+
+// Linear two-terminal resistor. Set resistance in ohms.
+module resistor(p, n);
+  inout p, n;
+  electrical p, n;
+  parameter real resistance = 1k from (0:inf);
+  analog begin
+    I(p, n) <+ V(p, n) / resistance;
+  end
+endmodule

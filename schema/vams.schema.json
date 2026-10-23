@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "vams-lsp project configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1, "default": 1 },
+    "source_dirs": { "type": "array", "items": { "type": "string" }, "default": ["."] },
+    "include_dirs": { "type": "array", "items": { "type": "string" } },
+    "library_dirs": { "type": "array", "items": { "type": "string" } },
+    "exclude": { "type": "array", "items": { "type": "string" } },
+    "extensions": { "type": "array", "items": { "type": "string" }, "default": ["va", "vams"] },
+    "defines": { "type": "object", "additionalProperties": { "type": "string" } },
+    "max_files": { "type": "integer", "minimum": 1, "default": 10000 },
+    "max_file_bytes": { "type": "integer", "minimum": 1, "default": 2097152 },
+    "completion": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "connections": { "enum": ["placeholders", "empty"], "default": "placeholders" },
+        "parameter_overrides": { "enum": ["omit", "defaults"], "default": "omit" }
+      }
+    }
+  }
+}

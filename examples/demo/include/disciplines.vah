@@ -1,0 +1,13 @@
+// Minimal standalone demo definitions, not a replacement for simulator headers.
+nature Voltage;
+  access = V;
+  units = "V";
+endnature
+nature Current;
+  access = I;
+  units = "A";
+endnature
+discipline electrical;
+  potential Voltage;
+  flow Current;
+enddiscipline

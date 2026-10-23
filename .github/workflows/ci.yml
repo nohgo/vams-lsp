@@ -1,179 +1,41 @@
-on:
-    push:
-    pull_request:
-    workflow_dispatch:
-    schedule:
-        - cron:  '0 0 * * 0'
-
-name: CI
-
+name: AMS language server
+on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
-    test:
-        name: Test Suite
-        runs-on: ubuntu-22.04
-        steps:
-            - name: Checkout sources
-              uses: actions/checkout@v6
-              with:
-                  submodules: true
-
-            - name: Install stable toolchain
-              uses: actions-rs/toolchain@v1
-              with:
-                  profile: minimal
-                  toolchain: 1.91.1
-                  override: true
-
-            - name: cache cargo dirs
-              uses: actions/cache@v4
-              with:
-                  path: |
-                      ~/.cargo/registry
-                      ~/.cargo/git
-                      target
-                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-            - name: Install Deps
-              run: |
-                  wget 'https://github.com/chipsalliance/verible/releases/download/v0.0-3607-g46de0f64/verible-v0.0-3607-g46de0f64-linux-static-x86_64.tar.gz' -O verible.tar.gz
-                  tar -xf verible.tar.gz
-                  sudo cp verible-v0.0-3607-g46de0f64/bin/* /usr/bin
-                  sudo apt update
-                  sudo apt-get install -y verilator perl
-
-            - name: Run cargo test
-              uses: actions-rs/cargo@v1
-              with:
-                  command: test
-                  args: --all-features
-            #todo: vscode extensions tests
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: "24"
-            - name: build extension
-              working-directory: extensions/vscode
-              run: |
-                  npm install
-                  npm install -g @vscode/vsce
-                  vsce package -o veridian.vsix
-
-    lints:
-        name: Lints
-        runs-on: ubuntu-22.04
-        steps:
-            - name: Checkout sources
-              uses: actions/checkout@v6
-              with:
-                  submodules: true
-
-            - name: Install stable toolchain
-              uses: actions-rs/toolchain@v1
-              with:
-                  profile: minimal
-                  toolchain: 1.91.1
-                  override: true
-                  components: rustfmt, clippy
-
-            - name: cache cargo dirs
-              uses: actions/cache@v4
-              with:
-                  path: |
-                      ~/.cargo/registry
-                      ~/.cargo/git
-                      target
-                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-            - name: Run cargo fmt
-              uses: actions-rs/cargo@v1
-              with:
-                  command: fmt
-                  args: --all -- --check
-            - uses: actions-rs/clippy-check@v1
-              with:
-                  token: ${{ secrets.GITHUB_TOKEN }}
-                  args: --all-features -- -D warnings
-
-    build_ubuntu:
-        name: Build Ubuntu
-        runs-on: ubuntu-22.04
-        if: ${{ github.ref == 'refs/heads/master' && ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) }}
-        steps:
-            - name: Checkout sources
-              uses: actions/checkout@v6
-
-            - name: Install stable toolchain
-              uses: actions-rs/toolchain@v1
-              with:
-                  profile: minimal
-                  toolchain: 1.91.1
-                  override: true
-
-            - name: cache cargo dirs
-              uses: actions/cache@v4
-              with:
-                  path: |
-                      ~/.cargo/registry
-                      ~/.cargo/git
-                      target
-                  key: ${{ runner.os }}-release-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-            - name: Run cargo build
-              uses: actions-rs/cargo@v1
-              with:
-                  command: build
-                  args: --all-features --release
-
-            - name: Create archive
-              run: |
-                  strip target/release/veridian
-                  cp target/release/veridian .
-                  tar -czvf veridian-ubuntu-22.04.tar.gz veridian
-
-            - uses: actions/upload-artifact@v4
-              with:
-                  name: veridian-ubuntu-22.04.tar.gz
-                  path: veridian-ubuntu-22.04.tar.gz
-                  if-no-files-found: error
-
-    build_vscode:
-        name: Build vscode extension
-        runs-on: ubuntu-latest
-        if: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) }}
-        steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: "24"
-            - name: build extension
-              working-directory: extensions/vscode
-              run: |
-                  npm install
-                  npm install -g @vscode/vsce
-                  vsce package -o veridian.vsix
-
-            - uses: actions/upload-artifact@v4
-              with:
-                  name: veridian.vsix
-                  path: extensions/vscode/veridian.vsix
-                  if-no-files-found: error
-
-    publish:
-        name: Create Release
-        needs: [build_ubuntu, build_vscode]
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/download-artifact@v4
-              with:
-                  name: veridian-ubuntu-22.04.tar.gz
-            - uses: actions/download-artifact@v4
-              with:
-                  name: veridian.vsix
-            - uses: marvinpinto/action-automatic-releases@latest
-              with:
-                  repo_token: ${{ secrets.GITHUB_TOKEN }}
-                  automatic_release_tag: nightly
-                  prerelease: true
-                  title: nightly
-                  files: |
-                      veridian-ubuntu-22.04.tar.gz
-                      veridian.vsix
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        neovim: ['v0.11.5', 'v0.12.5']
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_HOME: ${{ github.workspace }}/build/cargo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.1
+        with:
+          components: rustfmt, clippy
+      - run: make check test test-protocol
+      - name: Install pinned Neovim
+        env:
+          NVIM_VERSION: ${{ matrix.neovim }}
+        run: |
+          if [ "$(uname -s)" = Darwin ]; then
+            if [ "$(uname -m)" = arm64 ]; then name=nvim-macos-arm64; else name=nvim-macos-x86_64; fi
+          else
+            name=nvim-linux-x86_64
+          fi
+          curl -fL "https://github.com/neovim/neovim/releases/download/$NVIM_VERSION/$name.tar.gz" -o /tmp/nvim.tar.gz
+          tar xzf /tmp/nvim.tar.gz -C /tmp
+          echo "/tmp/$name/bin" >> "$GITHUB_PATH"
+      - name: Native editor and ecosystem checks
+        run: |
+          sh scripts/fetch-test-deps.sh
+          make test-neovim
+  stable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --locked

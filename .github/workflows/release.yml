@@ -1,0 +1,50 @@
+name: Release binaries
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+          - os: macos-latest
+            name: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.1
+      - run: cargo test --locked
+      - run: cargo build --release --locked
+      - name: Package
+        env:
+          NAME: ${{ matrix.name }}
+        run: |
+          if [ "$(uname -s)" = Darwin ]; then NAME="macos-$(uname -m)"; fi
+          mkdir -p "vams-lsp-$NAME"
+          cp target/release/vams-lsp LICENSE README.md "vams-lsp-$NAME/"
+          tar czf "vams-lsp-$NAME.tar.gz" "vams-lsp-$NAME"
+          shasum -a 256 "vams-lsp-$NAME.tar.gz" > "vams-lsp-$NAME.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            vams-lsp-*.tar.gz
+            vams-lsp-*.sha256
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: artifacts
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" artifacts/* --verify-tag --generate-notes
