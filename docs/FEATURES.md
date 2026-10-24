@@ -7,7 +7,9 @@ names, escaped names, module parameters/defaults, and connectmodule headers.
 Body declarations retain header order. Incomplete signatures are withheld rather
 than used to manufacture a whole instance. At a partially typed module-body line,
 a transient whitespace probe can recover completion context without altering or
-trusting the source buffer.
+trusting the source buffer. A temporary `endmodule` in that probe also supports
+new, unfinished modules. The source diagnostics stay intact; procedural/opaque
+contexts and ambiguous recovery at the cursor remain excluded.
 
 Scoped declarations include module nets/variables, ports, parameters/localparams,
 analog functions and arguments, named blocks, branches, disciplines and natures.
@@ -58,8 +60,9 @@ source locations remain in original files. File line endings/Unicode are retaine
   multi-root folder changes are advertised in this release.
 
 Syntax messages deliberately avoid claiming a specific cause when a recovery node
-is broad. Missing anonymous tokens and ERROR nodes are both reported, with a
-100-diagnostic cap. Existing formatter validation remains independent of the LSP.
+is broad. The fallback is "Incomplete or unrecognized Verilog-AMS syntax"; it
+marks the affected syntax without guessing the root cause. Missing anonymous
+tokens and ERROR nodes are both reported, with a 100-diagnostic cap. Existing formatter validation remains independent of the LSP.
 
 ## Measured smoke benchmark
 

@@ -572,7 +572,7 @@ impl Document {
                     if node.is_missing() {
                         format!("Missing {}", node.kind())
                     } else {
-                        "Unrecognized Verilog-AMS syntax (parser recovery)".into()
+                        "Incomplete or unrecognized Verilog-AMS syntax".into()
                     },
                 ));
             }

@@ -436,3 +436,70 @@ fn unmarked_file_root_does_not_walk_unrelated_subdirectories() {
     let scan = Project::new(dir.path().to_owned(), "client".into()).scan(Default::default());
     assert_eq!(2, scan.files.len());
 }
+
+#[test]
+fn module_completion_survives_unrelated_syntax_errors() {
+    let model = doc("resistor", RESISTOR);
+    let sources = [
+        "module top;\n  electrical p,n\n  resi\nendmodule\n",
+        "module top;\n  resi\n",
+        "module test2;\nresist\n",
+        "module top;\n  electrical p,n\n  resi\n",
+        "module top;\n  ???\n  resi\nendmodule\n",
+        "module top;\n  resistor broken(.p(), .n()\n  resi\nendmodule\n",
+        "module broken; parameter real x = ; endmodule\nmodule top;\n  resi\nendmodule\n",
+        "module top;\n  resi\nendmodule\nmodule broken( ;\n",
+        "module top;\n  parameter real r = ;\n  resi\nendmodule\n",
+        "module top;\n  resi\n  analog begin\n    V(p,n) <+ 1\n  end\nendmodule\n",
+        "module top;\n  analog begin\n    V(p,n) <+ ;\n  end\n  resi\nendmodule\n",
+        "module top;\n  resi\n  analog begin\n    V(p,n) <+ 1;\nendmodule\n",
+    ];
+    let mut failures = Vec::new();
+    for source in sources {
+        let top = doc("top", source);
+        let ws = workspace(&[model.clone(), top.clone()]);
+        let prefix_start = source.rfind("resi").unwrap();
+        let cursor = source[prefix_start..]
+            .find('\n')
+            .map_or(source.len(), |n| prefix_start + n);
+        let pos = text::position(source, cursor, Encoding::Utf16);
+        let items = ws.completion(&top.uri, pos, Encoding::Utf16, true);
+        if !items
+            .iter()
+            .any(|i| i.label == "resistor" && completion_text(i).contains(".p("))
+        {
+            failures.push(format!("{source}\n{}", top.tree.root_node().to_sexp()));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n\n"));
+}
+
+#[test]
+fn incomplete_module_completion_stays_out_of_procedural_and_opaque_contexts() {
+    let model = doc("resistor", RESISTOR);
+    for source in [
+        "module top\n  resist\nendmodule\n",
+        "module top;\nanalog begin\n  resist\n",
+        "module top;\nanalog begin\n  if (1) begin\n    resist\n",
+        "module top;\nanalog\n  resist\n",
+        "module top;\ninitial begin\n  resist\n",
+        "module top;\nanalog function real f;\ninput x; real x;\nbegin\n  resist\n",
+        "module top;\nfunction real f;\n  resist\n",
+        "module top;\n// resist\n",
+        "module top;\n/* resist",
+        "module top;\nparameter string x = \"resist",
+        "module top; endmodule\nresist\n",
+        "resist\n",
+    ] {
+        let top = doc("top", source);
+        let ws = workspace(&[model.clone(), top.clone()]);
+        let pos = text::position(source, source.find("resist").unwrap() + 6, Encoding::Utf16);
+        assert!(
+            !ws.completion(&top.uri, pos, Encoding::Utf16, true)
+                .iter()
+                .any(|i| i.label == "resistor"),
+            "module expansion in unsafe context: {source}\n{}",
+            top.tree.root_node().to_sexp()
+        );
+    }
+}

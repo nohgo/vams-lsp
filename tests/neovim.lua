@@ -29,7 +29,8 @@ vim.fn.mkdir(project, 'p')
 project = vim.uv.fs_realpath(project)
 vim.fn.writefile({ '{}' }, project .. '/.vams.json')
 vim.fn.writefile({ 'module resistor(p,n);', 'inout p,n;', 'electrical p,n;', 'parameter real r=1k;', 'endmodule' }, project .. '/resistor.va')
-vim.fn.writefile({ 'module top;', '  resi', 'endmodule' }, project .. '/top.va')
+-- Incomplete modules must still offer real Blink/LuaSnip instance expansion.
+vim.fn.writefile({ 'module top;', '  resi' }, project .. '/top.va')
 vim.cmd.edit(vim.fn.fnameescape(project .. '/top.va'))
 vim.bo.filetype = 'verilogams'
 local buf = vim.api.nvim_get_current_buf()

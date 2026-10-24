@@ -359,17 +359,34 @@ impl Workspace {
         if !module_context && lead.trim().is_empty() && !doc.errors.is_empty() {
             let mut probe = doc.text.clone();
             probe.replace_range(start..byte, &" ".repeat(byte - start));
-            if let Ok(recovered) = Document::parse(
-                doc.uri.clone(),
-                probe,
-                doc.version,
-                &self.project.config.defines,
-            ) {
+            // A new module often has no endmodule yet. A temporary closing
+            // token can establish its body scope without changing the source.
+            // Recovery covering the cursor is still too ambiguous to expand.
+            for closing in ["", "\nendmodule\n"] {
+                let Ok(recovered) = Document::parse(
+                    doc.uri.clone(),
+                    format!("{probe}{closing}"),
+                    doc.version,
+                    &self.project.config.defines,
+                ) else {
+                    continue;
+                };
+                if !closing.is_empty()
+                    && recovered
+                        .errors
+                        .iter()
+                        .any(|(span, _)| span.start <= start && start <= span.end)
+                {
+                    continue;
+                }
                 let scope = recovered.scope_at(start.saturating_sub(1));
                 module_context = recovered
                     .modules
                     .iter()
                     .any(|m| recovered.symbols[m.symbol].child_scope == Some(scope));
+                if module_context {
+                    break;
+                }
             }
         }
         let newline = if doc.text.contains("\r\n") {

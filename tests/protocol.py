@@ -147,6 +147,22 @@ class ProtocolTests(unittest.TestCase):
         notifications = [n['params'] for n in self.rpc.notifications if n.get('method') == 'textDocument/publishDiagnostics']
         self.assertTrue(any(n['uri'] == self.top.as_uri() and n.get('version') == 2 and not n['diagnostics'] for n in notifications))
 
+    def test_completion_in_module_without_endmodule(self):
+        self.rpc.open(self.top, 'module test2;\nresist\n')
+        request = {'textDocument': {'uri': self.top.as_uri()}, 'position': {'line': 1, 'character': 6}}
+        items = self.rpc.request('textDocument/completion', request)
+        item = next(item for item in items if item['label'] == 'resistor')
+        self.assertIn('${1:u_resistor}', item['textEdit']['newText'])
+        self.assertIn('.p(', item['textEdit']['newText'])
+        self.assertIn('.n(', item['textEdit']['newText'])
+        self.assertEqual({'line': 1, 'character': 0}, item['textEdit']['range']['start'])
+        self.assertEqual({'line': 1, 'character': 6}, item['textEdit']['range']['end'])
+        # The context-only probe never hides the actual incomplete source error.
+        self.rpc.request('workspace/executeCommand', {'command': 'vams.showProjectInfo'})
+        diagnostics = [n['params'] for n in self.rpc.notifications
+                       if n.get('method') == 'textDocument/publishDiagnostics']
+        self.assertTrue(any(n['uri'] == self.top.as_uri() and n['diagnostics'] for n in diagnostics))
+
     def test_refresh_file_changes_invalid_config_and_eof(self):
         extra = self.root / 'extra.va'
         extra.write_text('module extra; endmodule\n')
