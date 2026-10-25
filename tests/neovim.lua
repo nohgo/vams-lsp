@@ -87,6 +87,41 @@ assert(ls.jumpable(1), 'no editable snippet placeholders')
 ls.jump(1)
 assert(ls.jumpable(1), 'second port placeholder missing')
 ls.jump(1)
+
+-- Keyword acceptance uses the same native provider and snippet engine.
+local function accept_keyword(lines, row, col, label)
+  blink.hide()
+  if ls.in_snippet() then ls.unlink_current() end
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_win_set_cursor(0, { row, col })
+  request('textDocument/documentSymbol', { textDocument = { uri = uri } })
+  blink.show({ providers = { 'lsp' } })
+  local selected
+  wait(function()
+    for i, candidate in ipairs(blink.get_items()) do
+      if candidate.label == label and candidate.insertTextFormat == 2 then selected = i; return true end
+    end
+  end, 'Blink did not offer keyword template: ' .. label)
+  blink.accept({ index = selected })
+  wait(function()
+    local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+    return label == 'analog' and text:find('analog begin', 1, true) or label == 'module' and text:find('module_name', 1, true)
+  end, 'keyword template did not expand: ' .. label)
+  return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+end
+local analog = accept_keyword({ 'module top;', '  ana', 'endmodule' }, 2, 5, 'analog')
+assert(analog:find('\n  analog begin\n    \n  end\n', 1, true), 'analog indentation: ' .. analog)
+request('textDocument/documentSymbol', { textDocument = { uri = uri } })
+wait(function() return #vim.diagnostic.get(buf, { namespace = vim.lsp.diagnostic.get_namespace(client.id) }) == 0 end,
+  'accepted analog template is not valid AMS syntax')
+local module = accept_keyword({ 'mod' }, 1, 3, 'module')
+assert(module:find('module module_name ();\n  \nendmodule', 1, true), module)
+assert(not module:find('${', 1, true), module)
+assert(ls.jumpable(1), 'module port placeholder missing')
+ls.jump(1)
+request('textDocument/documentSymbol', { textDocument = { uri = uri } })
+wait(function() return #vim.diagnostic.get(buf, { namespace = vim.lsp.diagnostic.get_namespace(client.id) }) == 0 end,
+  'accepted module template is not valid AMS syntax')
 vim.cmd.stopinsert()
 
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'module top;', '  resistor u(.p(),.n());', 'endmodule' })

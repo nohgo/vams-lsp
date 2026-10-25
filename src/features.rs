@@ -272,6 +272,23 @@ fn basic_completions() -> Vec<CompletionItem> {
         .collect()
 }
 
+fn keyword_template(keyword: &str, module_body: bool, in_module: bool) -> Option<&'static str> {
+    match keyword {
+        "module" if !in_module => Some("module ${1:module_name} (${2});\n  $0\nendmodule"),
+        "analog" if module_body => Some("analog begin\n  $0\nend"),
+        "initial" if module_body => Some("initial begin\n  $0\nend"),
+        "always" if module_body => Some("always @(${1:*}) begin\n  $0\nend"),
+        "generate" if module_body => Some("generate\n  $0\nendgenerate"),
+        "begin" if in_module && !module_body => Some("begin\n  $0\nend"),
+        "if" if in_module => Some("if (${1:condition}) begin\n  $0\nend"),
+        "for" if in_module => {
+            Some("for (${1:i = 0}; ${2:i < count}; ${3:i = i + 1}) begin\n  $0\nend")
+        }
+        "while" if in_module && !module_body => Some("while (${1:condition}) begin\n  $0\nend"),
+        _ => None,
+    }
+}
+
 impl Workspace {
     pub fn completion(
         &self,
@@ -476,8 +493,38 @@ impl Workspace {
                 }
             }
         }
-        for item in basic_completions() {
+        let in_module = module_context
+            || doc.modules.iter().any(|m| {
+                let span = &doc.symbols[m.symbol].full;
+                span.start <= start && start < span.end
+            });
+        let standalone = lead.trim().is_empty()
+            && !typed.is_empty()
+            && doc.text[byte..]
+                .split('\n')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .is_empty();
+        for mut item in basic_completions() {
             if seen.insert(item.label.clone()) {
+                if snippets && standalone && item.kind == Some(CompletionItemKind::KEYWORD) {
+                    // Module templates belong at file scope, not inside a nature,
+                    // discipline or function. Other templates use the module context.
+                    let eligible = item.label != "module" || scope == 0;
+                    if let Some(template) = eligible
+                        .then(|| keyword_template(&item.label, module_context, in_module))
+                        .flatten()
+                    {
+                        item.detail = Some("Block template · editable placeholders".into());
+                        item.insert_text_format = Some(InsertTextFormat::SNIPPET);
+                        item.insert_text_mode = Some(InsertTextMode::AS_IS);
+                        item.text_edit = Some(CompletionTextEdit::Edit(TextEdit::new(
+                            edit_range,
+                            template.replace('\n', newline),
+                        )));
+                    }
+                }
                 items.push(item);
             }
         }

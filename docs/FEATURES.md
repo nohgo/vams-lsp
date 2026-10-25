@@ -11,6 +11,11 @@ trusting the source buffer. A temporary `endmodule` in that probe also supports
 new, unfinished modules. The source diagnostics stay intact; procedural/opaque
 contexts and ambiguous recovery at the cursor remain excluded.
 
+Standalone keyword completion can emit module, analog, begin/end, conditional,
+loop, initial/always and generate templates. Snippet capability and context are
+checked; clients without snippets and inline edits keep plain keyword items.
+Actual Blink acceptance tests cover module/analog indentation and tabstops.
+
 Scoped declarations include module nets/variables, ports, parameters/localparams,
 analog functions and arguments, named blocks, branches, disciplines and natures.
 Named connection labels resolve in the target module; expressions resolve in the
@@ -58,6 +63,14 @@ source locations remain in original files. File line endings/Unicode are retaine
   implemented. Configuration/status exposes progress and limits.
 - No code actions, full hierarchy UI, semantic tokens, LSP formatting, or dynamic
   multi-root folder changes are advertised in this release.
+
+A diagnostic-only pass recognizes missing module-header semicolons, including
+balanced parameter/port lists and intervening comments. It reparses bounded header
+insertions to avoid cascading highlights on subsequent declarations and maps all
+remaining locations back to original UTF-8/UTF-16 source ranges. It skips ambiguous
+macro/unbalanced headers. The original CST and raw error flags remain authoritative
+for completion, navigation and rename safety. Isolated rejected commas/closing
+delimiters are identified directly; parser MISSING tokens retain their names.
 
 Syntax messages deliberately avoid claiming a specific cause when a recovery node
 is broad. The fallback is "Incomplete or unrecognized Verilog-AMS syntax"; it

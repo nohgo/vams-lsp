@@ -1,3 +1,4 @@
+mod diagnostics;
 pub mod features;
 pub mod project;
 pub mod server;

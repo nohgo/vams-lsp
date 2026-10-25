@@ -163,6 +163,26 @@ class ProtocolTests(unittest.TestCase):
                        if n.get('method') == 'textDocument/publishDiagnostics']
         self.assertTrue(any(n['uri'] == self.top.as_uri() and n['diagnostics'] for n in diagnostics))
 
+    def test_specific_syntax_diagnostics_and_keyword_templates(self):
+        self.rpc.open(self.top, 'module test\n electrical p,,n;\nendmodule\n')
+        self.rpc.request('textDocument/documentSymbol', {'textDocument': {'uri': self.top.as_uri()}})
+        reports = [n['params']['diagnostics'] for n in self.rpc.notifications
+                   if n.get('method') == 'textDocument/publishDiagnostics'
+                   and n['params']['uri'] == self.top.as_uri()]
+        diagnostics = reports[-1]
+        messages = {d['message'] for d in diagnostics}
+        self.assertEqual({'Missing `;` after module header', 'Unexpected `,`'}, messages)
+        header = next(d for d in diagnostics if d['message'].startswith('Missing'))
+        self.assertEqual({'line': 0, 'character': 11}, header['range']['start'])
+        self.rpc.notify('textDocument/didChange', {'textDocument': {'uri': self.top.as_uri(), 'version': 2},
+                         'contentChanges': [{'text': 'mod'}]})
+        items = self.rpc.request('textDocument/completion', {'textDocument': {'uri': self.top.as_uri()},
+                                                          'position': {'line': 0, 'character': 3}})
+        module = next(i for i in items if i['label'] == 'module')
+        self.assertEqual(2, module['insertTextFormat'])
+        self.assertIn('endmodule', module['textEdit']['newText'])
+        self.assertIn('${1:module_name}', module['textEdit']['newText'])
+
     def test_refresh_file_changes_invalid_config_and_eof(self):
         extra = self.root / 'extra.va'
         extra.write_text('module extra; endmodule\n')

@@ -77,6 +77,7 @@ pub struct Document {
     pub occurrences: Vec<Occurrence>,
     pub includes: Vec<Include>,
     pub errors: Vec<(Span<usize>, String)>,
+    diagnostic_errors: Vec<(Span<usize>, String)>,
     pub directive_errors: Vec<(Span<usize>, String)>,
     pub has_macros: bool,
 }
@@ -276,12 +277,14 @@ impl Document {
             occurrences: Vec::new(),
             includes: Vec::new(),
             errors: Vec::new(),
+            diagnostic_errors: Vec::new(),
             directive_errors,
             has_macros: input.contains('`'),
         };
         let tree = doc.tree.clone();
         doc.extract(tree.root_node(), 0, 0);
         doc.collect(tree.root_node());
+        doc.diagnostic_errors = crate::diagnostics::present(&input, tree.root_node(), &mut parser);
         Ok(doc)
     }
     fn add(
@@ -612,7 +615,7 @@ impl Document {
             .or_else(|| self.occurrences.iter().find(|o| o.span.end == byte))
     }
     pub fn syntax_diagnostics(&self, encoding: Encoding) -> Vec<Diagnostic> {
-        self.errors
+        self.diagnostic_errors
             .iter()
             .chain(&self.directive_errors)
             .map(|(span, message)| Diagnostic {

@@ -503,3 +503,152 @@ fn incomplete_module_completion_stays_out_of_procedural_and_opaque_contexts() {
         );
     }
 }
+
+#[test]
+fn header_semicolon_diagnostics_are_precise_and_preserve_source_analysis() {
+    for (source, header) in [
+        ("module test\n electrical p,n;\nendmodule\n", "module test"),
+        ("module test(p,n)\n inout p,n;\nendmodule\n", "module test(p,n)"),
+        ("connectmodule test #(parameter real r=1k) (inout electrical p,n)\n analog I(p,n)<+V(p,n)/r;\nendmodule\n", "connectmodule test #(parameter real r=1k) (inout electrical p,n)"),
+        ("module test /* header */ (p,n) // ports\n inout p,n;\nendmodule\n", "module test /* header */ (p,n)"),
+        ("module test #(parameter string x=\"),/*\") (p,n)\n inout p,n;\nendmodule\n", "module test #(parameter string x=\"),/*\") (p,n)"),
+    ] {
+        let d = doc("header", source);
+        let issues = d.syntax_diagnostics(Encoding::Utf16);
+        assert_eq!(1, issues.len(), "{source}\n{issues:?}");
+        assert_eq!("Missing `;` after module header", issues[0].message);
+        assert_eq!(text::range(source, header.len()..header.len(), Encoding::Utf16), issues[0].range);
+        assert_eq!(source, d.text);
+        assert!(d.tree.root_node().has_error());
+        assert!(!d.errors.is_empty(), "diagnostic probes must not hide source errors from safety checks");
+    }
+}
+
+#[test]
+fn specific_punctuation_and_remaining_errors_keep_original_ranges() {
+    let source = "// μ😀\r\nmodule one\r\n electrical p,,n;\r\nendmodule\r\nmodule two(p,n)\r\n inout p,n;\r\n analog V(p,n)<+1\r\nendmodule\r\n";
+    let d = doc("punctuation", source);
+    let diagnostics = d.syntax_diagnostics(Encoding::Utf16);
+    assert_eq!(
+        2,
+        diagnostics
+            .iter()
+            .filter(|d| d.message == "Missing `;` after module header")
+            .count(),
+        "{diagnostics:?}"
+    );
+    let comma = diagnostics
+        .iter()
+        .find(|d| d.message == "Unexpected `,`")
+        .unwrap();
+    let at = source.find(",,").unwrap();
+    assert_eq!(
+        text::range(source, at..at + 1, Encoding::Utf16),
+        comma.range
+    );
+    assert!(
+        diagnostics.iter().any(|d| d.message == "Missing `;`"),
+        "{diagnostics:?}"
+    );
+    let named = doc("named", "module top; resistor u(.p(p),,.n(n)); endmodule");
+    assert!(named
+        .syntax_diagnostics(Encoding::Utf16)
+        .iter()
+        .any(|d| d.message == "Unexpected `,`"));
+}
+
+#[test]
+fn diagnostic_header_probes_skip_macros_unbalanced_headers_and_valid_text() {
+    for source in [
+        "module good #(parameter string x=\"),//\") (inout electrical p,n); analog V(p,n)<+1; endmodule",
+        "module good; // ,,,\n parameter string s=\",,,\"; endmodule",
+        "`ifdef ABSENT\nmodule ignored\n`endif\nmodule good; endmodule",
+    ] {
+        assert!(doc("good", source).syntax_diagnostics(Encoding::Utf16).is_empty(), "{source}");
+    }
+    for source in [
+        "module bad(p,n; endmodule",
+        "module bad `PORTS endmodule",
+        "module bad /* unfinished",
+    ] {
+        assert!(
+            !doc("unknown", source)
+                .syntax_diagnostics(Encoding::Utf16)
+                .iter()
+                .any(|d| d.message == "Missing `;` after module header"),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn keyword_templates_expand_only_in_standalone_snippet_contexts() {
+    for (source, keyword, content) in [
+        (
+            "mod",
+            "module",
+            "module ${1:module_name} (${2});\n  $0\nendmodule",
+        ),
+        (
+            "module top;\n  ana\nendmodule",
+            "analog",
+            "analog begin\n  $0\nend",
+        ),
+        (
+            "module top;\r\n  ana\r\nendmodule",
+            "analog",
+            "analog begin\r\n  $0\r\nend",
+        ),
+        (
+            "module top;\nanalog begin\n  beg\nend\nendmodule",
+            "begin",
+            "begin\n  $0\nend",
+        ),
+    ] {
+        let top = doc("top", source);
+        let keyword_start = source
+            .rfind(match keyword {
+                "module" => "mod",
+                "analog" => "ana",
+                _ => "beg",
+            })
+            .unwrap();
+        let pos = text::position(source, keyword_start + 3, Encoding::Utf16);
+        let ws = workspace(&[top.clone()]);
+        let items = ws.completion(&top.uri, pos, Encoding::Utf16, true);
+        let item = items.iter().find(|i| i.label == keyword).unwrap();
+        assert_eq!(
+            Some(InsertTextFormat::SNIPPET),
+            item.insert_text_format,
+            "{source}\n{item:?}"
+        );
+        assert_eq!(content, completion_text(item));
+        let plain = ws.completion(&top.uri, pos, Encoding::Utf16, false);
+        let item = plain.iter().find(|i| i.label == keyword).unwrap();
+        assert_ne!(Some(InsertTextFormat::SNIPPET), item.insert_text_format);
+    }
+    for (source, prefix, keyword) in [
+        ("module top;\n analog ana\nendmodule", "ana", "analog"),
+        ("module top;\n ana begin\n end\nendmodule", "ana", "analog"),
+        (
+            "module top;\n analog begin\n mod\n end\nendmodule",
+            "mod",
+            "module",
+        ),
+    ] {
+        let top = doc("top", source);
+        let ws = workspace(&[top.clone()]);
+        let pos = text::position(
+            source,
+            source.rfind(prefix).unwrap() + prefix.len(),
+            Encoding::Utf16,
+        );
+        let items = ws.completion(&top.uri, pos, Encoding::Utf16, true);
+        let item = items.iter().find(|i| i.label == keyword).unwrap();
+        assert_ne!(
+            Some(InsertTextFormat::SNIPPET),
+            item.insert_text_format,
+            "{source}"
+        );
+    }
+}

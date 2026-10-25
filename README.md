@@ -10,12 +10,15 @@ SystemVerilog frontend. No Cadence installation or simulator license is required
 - Complete a project module into an instance with editable instance-name and
   named-port placeholders. ANSI/non-ANSI port order and escaped names are retained.
 - Optional parameter overrides using declared defaults; no `localparam` overrides.
+- Accepted keyword templates for modules, analog/procedural blocks, conditionals,
+  loops and generate regions, with matching closing keywords and tabstops.
 - Go to module, port, parameter, variable, function, branch, nature, discipline,
   and literal include definitions. Duplicate global names return multiple targets.
 - Declaration hover, document/workspace symbols, scope-aware references and
   document highlights, and signature help for declared analog functions.
 - Complete remaining named ports/parameters inside existing instances.
-- Live syntax diagnostics, malformed directive checks, and conservative unknown
+- Live syntax diagnostics with focused missing-header-semicolon and unexpected
+  punctuation messages, malformed directive checks, and conservative unknown
   or duplicate named-connection warnings.
 - Versioned unsaved documents, bounded background indexing, periodic external-file
   refresh, root inspection, and data-only project configuration.
@@ -103,6 +106,38 @@ resistor u_resistor (
 The instance and connections are snippet placeholders. Use your existing snippet
 jump mappings; the suite's tested Neovim setup uses Ctrl-L/Ctrl-H. Acceptance is
 explicit: merely typing a complete word does not rewrite the buffer.
+
+### Keyword templates
+
+Accepting `module` in completion at file scope inserts a module skeleton with
+editable name/ports and a matching `endmodule`. Accepting `analog` on its own
+module-body line inserts:
+
+```verilog
+analog begin
+  // cursor here
+end
+```
+
+`begin`, `if`, `for`, `while`, `initial`, `always`, and `generate` have block
+templates in suitable contexts. Existing Ctrl-L/Ctrl-H snippet navigation works.
+Templates require snippet support and a standalone line; completing a keyword
+inside an existing statement leaves it as a word, so an existing block is not
+duplicated. Clients without snippet support retain plain keyword completion.
+
+### What syntax diagnostics can explain
+
+Deleting a module header's semicolon produces `Missing ; after module header`
+at that header, including ANSI ports and parameterized headers. Isolated extra
+commas/closing delimiters get `Unexpected ,`-style messages. Parser-provided
+missing tokens are named directly. Other malformed or unsupported constructs
+retain the generic syntax message.
+
+The LSP fork reuses Veridian's protocol foundation. Veridian's detailed checks
+used SystemVerilog tools such as Slang, Verible or Verilator; those engines are
+not an AMS compiler and are not bundled here. The focused explanations operate
+on the AMS parser's results. They do not establish semantic/compiler correctness;
+use the independent Cadence integration for those checks.
 
 ## Project roots and configuration
 
