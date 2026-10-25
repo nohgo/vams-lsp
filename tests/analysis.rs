@@ -446,7 +446,6 @@ fn module_completion_survives_unrelated_syntax_errors() {
         "module test2;\nresist\n",
         "module top;\n  electrical p,n\n  resi\n",
         "module top;\n  ???\n  resi\nendmodule\n",
-        "module top;\n  resistor broken(.p(), .n()\n  resi\nendmodule\n",
         "module broken; parameter real x = ; endmodule\nmodule top;\n  resi\nendmodule\n",
         "module top;\n  resi\nendmodule\nmodule broken( ;\n",
         "module top;\n  parameter real r = ;\n  resi\nendmodule\n",
@@ -485,6 +484,7 @@ fn incomplete_module_completion_stays_out_of_procedural_and_opaque_contexts() {
         "module top;\ninitial begin\n  resist\n",
         "module top;\nanalog function real f;\ninput x; real x;\nbegin\n  resist\n",
         "module top;\nfunction real f;\n  resist\n",
+        "module top;\n  resistor broken(.p(), .n()\n  resist\nendmodule\n",
         "module top;\n// resist\n",
         "module top;\n/* resist",
         "module top;\nparameter string x = \"resist",
@@ -493,7 +493,7 @@ fn incomplete_module_completion_stays_out_of_procedural_and_opaque_contexts() {
     ] {
         let top = doc("top", source);
         let ws = workspace(&[model.clone(), top.clone()]);
-        let pos = text::position(source, source.find("resist").unwrap() + 6, Encoding::Utf16);
+        let pos = text::position(source, source.rfind("resist").unwrap() + 6, Encoding::Utf16);
         assert!(
             !ws.completion(&top.uri, pos, Encoding::Utf16, true)
                 .iter()
@@ -547,7 +547,9 @@ fn specific_punctuation_and_remaining_errors_keep_original_ranges() {
         comma.range
     );
     assert!(
-        diagnostics.iter().any(|d| d.message == "Missing `;`"),
+        diagnostics
+            .iter()
+            .any(|d| d.message == "Missing `;` after analog contribution"),
         "{diagnostics:?}"
     );
     let named = doc("named", "module top; resistor u(.p(p),,.n(n)); endmodule");
@@ -651,4 +653,56 @@ fn keyword_templates_expand_only_in_standalone_snippet_contexts() {
             "{source}"
         );
     }
+}
+
+#[test]
+fn duplicate_declarations_are_scoped_and_link_the_first_declaration() {
+    for source in [
+        "module top; real x; real x; endmodule",
+        "module top; parameter real r=1; localparam real r=2; endmodule",
+        "module top; branch(p,n) b; branch(p,n) b; endmodule",
+        "module top; resistor r(p,n); resistor r(p,n); endmodule",
+        "module top; function real f; input x; begin f=x; end endfunction function real f; input y; begin f=y; end endfunction endmodule",
+        "module top; endmodule module top; endmodule",
+    ] {
+        let d = doc("duplicate", source);
+        let ws = workspace(&[d.clone()]);
+        let issues = ws.diagnostics(&d, Encoding::Utf16);
+        let duplicate = issues.iter().find(|d| d.message.contains("Duplicate declaration")).unwrap_or_else(|| panic!("{source}\n{issues:?}"));
+        assert_eq!(1, duplicate.related_information.as_ref().unwrap().len());
+    }
+    for source in [
+        "module top(p); output p; reg p; endmodule",
+        "module top; wire p; electrical p; endmodule",
+        "module top; real x; analog function real f; input x; real x; begin f=x; end endfunction endmodule",
+        "module first; real x; endmodule module second; real x; endmodule",
+        "`ifdef A\nmodule top; real x; endmodule\n`else\nmodule top; real x; endmodule\n`endif",
+    ] {
+        let d = doc("compatible", source);
+        let ws = workspace(&[d.clone()]);
+        assert!(!ws.diagnostics(&d, Encoding::Utf16).iter().any(|d| d.message.contains("Duplicate declaration")), "{source}");
+    }
+}
+
+#[test]
+fn healthy_instances_are_checked_when_another_region_is_broken() {
+    let model = doc("resistor", RESISTOR);
+    let top = doc(
+        "top",
+        "module top; resistor r(.bogus(p),.n(n)); analog begin V(p)<+; end endmodule",
+    );
+    let ws = workspace(&[model, top.clone()]);
+    let issues = ws.diagnostics(&top, Encoding::Utf16);
+    assert!(
+        issues
+            .iter()
+            .any(|d| d.message.contains("Missing expression")),
+        "{issues:?}"
+    );
+    assert!(
+        issues
+            .iter()
+            .any(|d| d.message.contains("Unknown port 'bogus'")),
+        "{issues:?}"
+    );
 }

@@ -183,6 +183,22 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn('endmodule', module['textEdit']['newText'])
         self.assertIn('${1:module_name}', module['textEdit']['newText'])
 
+    def test_common_analog_errors_and_versioned_repair(self):
+        self.rpc.open(self.top, 'module top;\n electrical p\n analog begin\n V(p)=;\nendmodule\n')
+        self.rpc.request('textDocument/documentSymbol', {'textDocument': {'uri': self.top.as_uri()}})
+        reports = [n['params'] for n in self.rpc.notifications if n.get('method') == 'textDocument/publishDiagnostics'
+                   and n['params']['uri'] == self.top.as_uri()]
+        messages = [d['message'] for d in reports[-1]['diagnostics']]
+        for expected in ['Missing `;` after declaration', 'Use `<+`', 'Missing expression after `=`', 'Missing `end`']:
+            self.assertTrue(any(expected in message for message in messages), messages)
+        self.assertEqual(1, reports[-1]['version'])
+        self.rpc.notify('textDocument/didChange', {'textDocument': {'uri': self.top.as_uri(), 'version': 2},
+                         'contentChanges': [{'text': 'module top; electrical p; analog begin V(p)<+1; end endmodule'}]})
+        self.rpc.request('workspace/executeCommand', {'command': 'vams.showProjectInfo'})
+        reports = [n['params'] for n in self.rpc.notifications if n.get('method') == 'textDocument/publishDiagnostics'
+                   and n['params']['uri'] == self.top.as_uri() and n['params'].get('version') == 2]
+        self.assertTrue(any(not n['diagnostics'] for n in reports), reports)
+
     def test_refresh_file_changes_invalid_config_and_eof(self):
         extra = self.root / 'extra.va'
         extra.write_text('module extra; endmodule\n')

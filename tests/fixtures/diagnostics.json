@@ -1,0 +1,603 @@
+{
+  "errors": [
+    {
+      "name": "digital reg declaration",
+      "source": "module m;\nreg q\nalways @(posedge clk) begin q<=d; end\nendmodule\n",
+      "expected": [
+        "Missing `;` after declaration"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "digital wire declaration",
+      "source": "module m;\nwire a,b\nassign a=b;\nendmodule\n",
+      "expected": [
+        "Missing `;` after declaration"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "analog electrical declaration",
+      "source": "module m;\nelectrical p,n\nanalog I(p,n)<+V(p,n);\nendmodule\n",
+      "expected": [
+        "Missing `;` after declaration"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "custom discipline declaration",
+      "source": "module m;\nthermal t\nanalog T(t)<+1;\nendmodule\n",
+      "expected": [
+        "Missing `;` after declaration or module instance"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "parameter declaration",
+      "source": "module m;\nparameter real r=1k\nanalog I(p)<+V(p)/r;\nendmodule\n",
+      "expected": [
+        "Missing `;` after parameter declaration"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "port declaration",
+      "source": "module m(a,b);\ninput a,b\nreg q;\nendmodule",
+      "expected": [
+        "Missing `;` after port declaration"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "branch declaration",
+      "source": "module m;\nelectrical p,n; branch(p,n) b\nanalog I(b)<+V(b);\nendmodule\n",
+      "expected": [
+        "Missing `;` after branch declaration"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "integer declaration",
+      "source": "module m;\ninteger i\ninitial i=0;\nendmodule\n",
+      "expected": [
+        "Missing `;` after declaration"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "continuous assignment",
+      "source": "module m;\nwire a,b; assign a=b\nalways @(posedge a) begin end\nendmodule\n",
+      "expected": [
+        "Missing `;` after continuous assignment"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "digital nonblocking assignment",
+      "source": "module m;\nreg q; always @(posedge clk) begin q<=d\nend\nendmodule\n",
+      "expected": [
+        "Missing `;` after assignment"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "analog variable assignment",
+      "source": "module m;\nreal x; analog begin x=1\nx=2; end\nendmodule\n",
+      "expected": [
+        "Missing `;` after assignment"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "analog contribution",
+      "source": "module m;\nelectrical p,n; analog begin I(p,n)<+V(p,n)/1k\nend\nendmodule\n",
+      "expected": [
+        "Missing `;` after analog contribution"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "module instantiation",
+      "source": "module m;\nresistor r(.p(p),.n(n))\nanalog V(p)<+1;\nendmodule\n",
+      "expected": [
+        "Missing `;` after declaration or module instance"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "nature attribute",
+      "source": "nature Voltage; units=\"V\"\naccess=V; endnature",
+      "expected": [
+        "Missing `;` after nature attribute"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "discipline attribute",
+      "source": "discipline electrical; potential Voltage\nflow Current; enddiscipline",
+      "expected": [
+        "Missing `;` after discipline attribute"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "function return assignment",
+      "source": "module m;\nanalog function real f; input x; real x; begin f=x\nend endfunction\nendmodule\n",
+      "expected": [
+        "Missing `;` after assignment"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "module missing ending",
+      "source": "module m; electrical p; analog V(p)<+1;",
+      "expected": [
+        "Missing `endmodule`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "analog missing end",
+      "source": "module m;\nelectrical p; analog begin V(p)<+1;\nendmodule\n",
+      "expected": [
+        "Missing `end` to close `begin`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "digital missing end",
+      "source": "module m;\nreg q; always @(posedge clk) begin q<=d;\nendmodule\n",
+      "expected": [
+        "Missing `end` to close `begin`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing begin analog",
+      "source": "module m;\nanalog V(p)<+1; end\nendmodule\n",
+      "expected": [
+        "Unexpected `end`; no matching `begin`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing begin digital",
+      "source": "module m;\nreg q; always @(posedge clk) q<=d; end\nendmodule\n",
+      "expected": [
+        "Unexpected `end`; no matching `begin`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "case missing endcase",
+      "source": "module m;\nreg q; always @* begin case(sel) 0:q=0; default:q=1; end\nendmodule\n",
+      "expected": [
+        "Missing `endcase`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "analog function missing endfunction",
+      "source": "module m;\nanalog function real f; input x; real x; begin f=x; end\nendmodule\n",
+      "expected": [
+        "Missing `endfunction`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "digital function missing endfunction",
+      "source": "module m;\nfunction real f; input x; begin f=x; end\nendmodule\n",
+      "expected": [
+        "Missing `endfunction`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "task missing endtask",
+      "source": "module m;\ntask drive; begin q=1; end\nendmodule\n",
+      "expected": [
+        "Missing `endtask`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "nature missing endnature",
+      "source": "nature Voltage; units=\"V\"; access=V;",
+      "expected": [
+        "Missing `endnature`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "discipline missing enddiscipline",
+      "source": "discipline electrical; potential Voltage;",
+      "expected": [
+        "Missing `enddiscipline`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "generate missing endgenerate",
+      "source": "module m;\ngenerate if (1) begin resistor r(p,n); end\nendmodule\n",
+      "expected": [
+        "Missing `endgenerate`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "new module before previous closes",
+      "source": "module first; wire a;\nmodule second; wire b; endmodule",
+      "expected": [
+        "Missing `endmodule`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "extra endmodule",
+      "source": "module m; endmodule\nendmodule",
+      "expected": [
+        "Unexpected `endmodule`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing call parenthesis",
+      "source": "module m;\nelectrical p; analog V(p)<+sin(1;\nendmodule\n",
+      "expected": [
+        "Missing `)`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing if parenthesis",
+      "source": "module m;\nreg q; always @* begin if (a begin q=1; end end\nendmodule\n",
+      "expected": [
+        "Missing `)`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "mismatched parentheses",
+      "source": "module m;\nanalog V(p)<+sin(1];\nendmodule\n",
+      "expected": [
+        "Mismatched delimiter: expected `)`, found `]`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "extra closing parenthesis",
+      "source": "module m;\nanalog V(p)<+1);\nendmodule\n",
+      "expected": [
+        "Unexpected `)`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "unclosed index",
+      "source": "module m;\nreg [3:0] q; always @* q[0=1;\nendmodule\n",
+      "expected": [
+        "Missing `]`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "unclosed concatenation",
+      "source": "module m;\nwire [1:0] q; assign q={a,b;\nendmodule\n",
+      "expected": [
+        "Missing `}`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing parameter value",
+      "source": "module m;\nparameter real r=;\nendmodule\n",
+      "expected": [
+        "Missing expression after `=`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing analog contribution value",
+      "source": "module m;\nanalog V(p)<+;\nendmodule\n",
+      "expected": [
+        "Missing expression after `<+`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing digital assignment value",
+      "source": "module m;\nreg q; always @* q<=;\nendmodule\n",
+      "expected": [
+        "Missing expression after `<=`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing binary operand",
+      "source": "module m;\nanalog V(p)<+1+;\nendmodule\n",
+      "expected": [
+        "Missing expression after `+`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing if condition",
+      "source": "module m;\nreg q; always @* begin if () q=1; end\nendmodule\n",
+      "expected": [
+        "Missing condition inside `if(...)`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing while condition",
+      "source": "module m;\ninteger i; initial while () i=1;\nendmodule\n",
+      "expected": [
+        "Missing condition inside `while(...)`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing case selector",
+      "source": "module m;\nreg q; always @* case () default:q=1; endcase\nendmodule\n",
+      "expected": [
+        "Missing selector expression"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing repeat count",
+      "source": "module m;\ninitial repeat () q=1;\nendmodule\n",
+      "expected": [
+        "Missing repeat count"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "missing sensitivity expression",
+      "source": "module m;\nreg q; always @() q=1;\nendmodule\n",
+      "expected": [
+        "Missing event expression"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "analog branch assigned like variable",
+      "source": "module m;\nelectrical p,n; analog begin V(p,n)=1; end\nendmodule\n",
+      "expected": [
+        "Use `<+` to contribute to `V(...)`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "analog current assigned like variable",
+      "source": "module m;\nelectrical p,n; analog I(p,n)=1;\nendmodule\n",
+      "expected": [
+        "Use `<+` to contribute to `I(...)`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "nonblocking analog variable assignment",
+      "source": "module m;\nreal x; analog begin x<=1; end\nendmodule\n",
+      "expected": [
+        "Nonblocking `<=` assignments are not allowed in analog blocks"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "contribution in digital block",
+      "source": "module m;\nalways @* begin V(p)<+1; end\nendmodule\n",
+      "expected": [
+        "must be inside an `analog` block"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "contribution in analog function",
+      "source": "module m;\nanalog function real f; input x; real x; begin V(p)<+x; end endfunction\nendmodule\n",
+      "expected": [
+        "not allowed inside functions"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "unterminated comment",
+      "source": "module m; /* comment begins here",
+      "expected": [
+        "Unterminated block comment"
+      ],
+      "forbidden": [
+        "Missing `endmodule`"
+      ]
+    },
+    {
+      "name": "unterminated string",
+      "source": "module m;\nparameter string s=\"broken;\nendmodule\n",
+      "expected": [
+        "Unterminated string literal"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "newline in string",
+      "source": "module m;\nparameter string s=\"broken\nstring\";\nendmodule\n",
+      "expected": [
+        "Unterminated string literal"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "unterminated include",
+      "source": "`include \"disciplines.vams\nmodule m; endmodule",
+      "expected": [
+        "Unterminated include filename"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "unsupported flip flop keyword",
+      "source": "module m;\nreg q; always_ff @(posedge clk) begin q<=d; end\nendmodule\n",
+      "expected": [
+        "SystemVerilog `always_ff`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "unsupported comb keyword",
+      "source": "module m;\nreg q; always_comb begin q=d; end\nendmodule\n",
+      "expected": [
+        "SystemVerilog `always_comb`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "multiple errors with unicode",
+      "source": "// \u03bc\ud83d\ude00\r\nmodule m;\r\nelectrical p\r\nanalog begin V(p)<+;\r\nendmodule\r\n",
+      "expected": [
+        "Missing `;` after declaration",
+        "Missing expression after `<+`",
+        "Missing `end`"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "valid mixed interval plus unrelated error",
+      "source": "module m;\nparameter real r=1 from [0:inf); analog V(p)<+r\nendmodule\n",
+      "expected": [
+        "Missing `;` after analog contribution"
+      ],
+      "forbidden": [
+        "Mismatched delimiter",
+        "Unclosed parameter interval"
+      ]
+    },
+    {
+      "name": "scalar macro plus unrelated missing end",
+      "source": "`define VALUE 1\nmodule m; parameter real p=`VALUE; analog begin V(n)<+p; endmodule",
+      "expected": [
+        "Missing `end`"
+      ],
+      "forbidden": [
+        "Unexpected `end"
+      ]
+    },
+    {
+      "name": "macro structure stays conservative",
+      "source": "`define END endmodule\nmodule m;\n`END\n",
+      "expected": [],
+      "forbidden": [
+        "Missing `endmodule`",
+        "Unexpected `endmodule`"
+      ]
+    },
+    {
+      "name": "legacy identifier plus unrelated error",
+      "source": "module m;\nreg always_ff; analog V(p)<+1\nendmodule\n",
+      "expected": [
+        "Missing `;` after analog contribution"
+      ],
+      "forbidden": [
+        "SystemVerilog `always_ff`"
+      ]
+    },
+    {
+      "name": "optional nature header with broken attribute",
+      "source": "nature Voltage\nunits=; access=V; endnature",
+      "expected": [
+        "Missing expression after `=`"
+      ],
+      "forbidden": [
+        "Missing `;` after nature header"
+      ]
+    },
+    {
+      "name": "optional discipline header with broken attribute",
+      "source": "discipline electrical\npotential Voltage\nflow Current; enddiscipline",
+      "expected": [
+        "Missing `;` after discipline attribute"
+      ],
+      "forbidden": [
+        "Missing `;` after discipline header"
+      ]
+    },
+    {
+      "name": "attributes and comments with unrelated missing semicolon",
+      "source": "module m; (* desc=\"begin end )\" *) electrical p; analog V(p)<+1 endmodule",
+      "expected": [
+        "Missing `;` after analog contribution"
+      ],
+      "forbidden": [
+        "Missing expression after `*`",
+        "Mismatched delimiter"
+      ]
+    },
+    {
+      "name": "analog comparison with unrelated errors",
+      "source": "module m; real x; analog begin V(p)<+x<=1; x=2 endmodule",
+      "expected": [
+        "Missing `;` after assignment",
+        "Missing `end`"
+      ],
+      "forbidden": [
+        "Nonblocking `<=` assignments"
+      ]
+    },
+    {
+      "name": "analog function header terminator",
+      "source": "module m; analog function real f\ninput x; real x; begin f=x; end endfunction endmodule",
+      "expected": [
+        "Missing `;` after function header"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "digital task header terminator",
+      "source": "module m; task drive\ninput d; begin q=d; end endtask endmodule",
+      "expected": [
+        "Missing `;` after task header"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "parameter missing initializer",
+      "source": "module m; parameter real r; endmodule",
+      "expected": [
+        "Parameter `r` requires an initializer"
+      ],
+      "forbidden": []
+    },
+    {
+      "name": "localparam missing initializer",
+      "source": "module m; localparam integer count; endmodule",
+      "expected": [
+        "Parameter `count` requires an initializer"
+      ],
+      "forbidden": []
+    }
+  ],
+  "valid": [
+    "module m;\nelectrical p,n; parameter real r=1k from (0:inf); branch(p,n) b; analog begin I(b)<+V(b)/r; end\nendmodule\n",
+    "module m;\nreg q; wire clk,d; always @(posedge clk) begin q<=d; end\nendmodule\n",
+    "module m;\nwire a,b; assign a=b;\nendmodule\n",
+    "module m;\nparameter real r=1 from [0:inf) exclude (0:0.5]; analog V(p)<+r;\nendmodule\n",
+    "module m;\nparameter real r=1 from (0:inf] exclude [0:0.5); analog V(p)<+r;\nendmodule\n",
+    "module m;\nreal x; analog begin if (x<=1) x=2; else x=3; V(p)<+(x<=2); end\nendmodule\n",
+    "module m;\nreg q; always @(*) begin case(sel) 0:q=0; default:q=1; endcase end\nendmodule\n",
+    "module m;\ninteger i; initial begin for(i=0;i<4;i=i+1) begin q=i; end end\nendmodule\n",
+    "module m;\nanalog function real f; input x; real x; begin f=x; end endfunction\nendmodule\n",
+    "module m;\nfunction real f; input x; begin f=x; end endfunction\nendmodule\n",
+    "module m;\ntask drive; input d; begin q=d; end endtask\nendmodule\n",
+    "nature Voltage; units=\"V\"; access=V; abstol=1u; endnature\ndiscipline electrical; potential Voltage; enddiscipline\n",
+    "module m;\nparameter string s=\"begin end module ) // /*\"; analog V(p)<+1;\nendmodule\n",
+    "module m;\n/* begin ) endmodule */ electrical p; // end )\n analog V(p)<+1;\nendmodule\n",
+    "module m;\nelectrical \\p) ; analog V(\\p) )<+1;\nendmodule\n",
+    "`define WRAP(x) begin x end\nmodule m; analog V(p)<+1; endmodule\n",
+    "`ifdef DISABLED\nmodule not_closed\n`endif\nmodule m; endmodule\n",
+    "module m;\nreg always_ff; wire always_comb;\nendmodule\n",
+    "module m;\nresistor r(\n .p(p),\n .n(n)\n);\nendmodule\n",
+    "module m;\nparameter real r =\n 1 +\n 2; analog V(p)<+r;\nendmodule\n",
+    "module m;\nelectrical\n p,\n n; analog V(p,n)<+1;\nendmodule\n",
+    "nature Voltage\nunits=\"V\"; access=V; endnature",
+    "discipline electrical\npotential Voltage; flow Current; enddiscipline"
+  ]
+}

@@ -137,6 +137,28 @@ request('textDocument/documentSymbol', { textDocument = { uri = uri } })
 wait(function() return #vim.diagnostic.get(buf, { namespace = vim.lsp.diagnostic.get_namespace(client.id) }) > 0 end,
   'missing semicolon did not produce native LSP diagnostic')
 assert(#vim.diagnostic.get(buf, { namespace = other }) == 1, 'another diagnostic source was cleared')
+-- Common analog mistakes get distinct messages, then clear on repair.
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'module top;', 'electrical p', 'analog begin', 'V(p)=;', 'endmodule' })
+request('textDocument/documentSymbol', { textDocument = { uri = uri } })
+wait(function()
+  local messages = {}
+  for _, diagnostic in ipairs(vim.diagnostic.get(buf, { namespace = vim.lsp.diagnostic.get_namespace(client.id) })) do messages[#messages+1] = diagnostic.message end
+  local text = table.concat(messages, '\n')
+  return text:find('Missing `;` after declaration', 1, true) and text:find('Use `<+`', 1, true)
+    and text:find('Missing expression', 1, true) and text:find('Missing `end`', 1, true)
+end, 'common analog diagnostic messages missing')
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'module top;', 'electrical p;', 'analog begin', 'V(p)<+1;', 'end', 'endmodule' })
+request('textDocument/documentSymbol', { textDocument = { uri = uri } })
+wait(function() return #vim.diagnostic.get(buf, { namespace = vim.lsp.diagnostic.get_namespace(client.id) }) == 0 end, 'repaired analog diagnostics did not clear')
+vim.treesitter.start(buf, 'verilog_ams')
+vim.treesitter.get_parser(buf, 'verilog_ams'):parse()
+local winning, priority = nil, -1
+for _, capture in ipairs(vim.treesitter.get_captures_at_pos(buf, 1, 2)) do
+  local candidate = tonumber(capture.metadata.priority) or 100
+  if candidate >= priority then winning, priority = capture.capture, candidate end
+end
+assert(winning == 'type.builtin', 'electrical lost to a generic identifier capture: ' .. vim.inspect(winning))
+
 -- The real Cadence plugin runs its fake compiler on an actual save. Native
 -- syntax diagnostics and compiler diagnostics must remain independent.
 local cadence = require('cadence')

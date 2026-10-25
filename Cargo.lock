@@ -760,7 +760,7 @@ checksum = "e8ddffe35a0e5eeeadf13ff7350af564c6e73993a24db62caee1822b185c2600"
 [[package]]
 name = "tree-sitter-verilog-ams"
 version = "0.1.0"
-source = "git+https://github.com/nohgo/tree-sitter-verilog-ams.git?rev=0b2672e76ff2941fb62081b5d42b0ae84a0f6c46#0b2672e76ff2941fb62081b5d42b0ae84a0f6c46"
+source = "git+https://github.com/nohgo/tree-sitter-verilog-ams.git?rev=92c803343d0e2f79475b28558655f6fbe207cebb#92c803343d0e2f79475b28558655f6fbe207cebb"
 dependencies = [
  "cc",
  "tree-sitter-language",

@@ -64,18 +64,12 @@ source locations remain in original files. File line endings/Unicode are retaine
 - No code actions, full hierarchy UI, semantic tokens, LSP formatting, or dynamic
   multi-root folder changes are advertised in this release.
 
-A diagnostic-only pass recognizes missing module-header semicolons, including
-balanced parameter/port lists and intervening comments. It reparses bounded header
-insertions to avoid cascading highlights on subsequent declarations and maps all
-remaining locations back to original UTF-8/UTF-16 source ranges. It skips ambiguous
-macro/unbalanced headers. The original CST and raw error flags remain authoritative
-for completion, navigation and rename safety. Isolated rejected commas/closing
-delimiters are identified directly; parser MISSING tokens retain their names.
-
-Syntax messages deliberately avoid claiming a specific cause when a recovery node
-is broad. The fallback is "Incomplete or unrecognized Verilog-AMS syntax"; it
-marks the affected syntax without guessing the root cause. Missing anonymous
-tokens and ERROR nodes are both reported, with a 100-diagnostic cap. Existing formatter validation remains independent of the LSP.
+The [offline diagnostics catalog](DIAGNOSTICS.md) describes common digital/analog
+terminators, block/delimiter matching, expressions, text, analog misuse, scoped
+declarations and named connections. Source-mapped recovery reduces cascades while
+the original CST/error flags remain authoritative for language features and
+formatter safety. Ambiguous cases retain a generic fallback, with a 100-message
+cap. Lexical and parser probes are bounded and never edit source.
 
 ## Measured smoke benchmark
 

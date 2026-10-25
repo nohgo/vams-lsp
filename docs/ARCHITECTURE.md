@@ -7,8 +7,10 @@ backend/lifecycle and completion helper patterns are adapted from that server.
 The SystemVerilog parser, external lint engines, and formatting ownership are
 replaced with the suite's pinned AMS parser and offline project analysis.
 
-`diagnostics` adds focused punctuation/header explanations using a presentation-only
-parse, with source-position mapping and the untouched CST retained for analysis.
+`diagnostics` combines a shared source lexer, block/delimiter matching,
+grammar-validated statement probes, expression checks and a presentation-only
+recovery parse. Original-source position mapping and the untouched CST are kept
+separate from explanations; the lexer also guards incomplete-code completion.
 `syntax` extracts declarations, scopes, module signatures, occurrences, and
 instances from Tree-sitter. `project` loads data-only configuration and discovers
 bounded source/include graphs. `workspace` combines disk snapshots with versioned

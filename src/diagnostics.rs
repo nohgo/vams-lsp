@@ -3,7 +3,96 @@ use crate::syntax::descendants;
 use std::ops::Range;
 use tree_sitter::{Node, Parser};
 
+mod expressions;
+mod lex;
+mod semicolons;
+mod structure;
 type Issue = (Range<usize>, String);
+
+#[derive(Clone, PartialEq, Eq)]
+struct Edit {
+    span: Range<usize>,
+    text: String,
+}
+impl Edit {
+    fn insert(at: usize, text: impl Into<String>) -> Self {
+        Self {
+            span: at..at,
+            text: text.into(),
+        }
+    }
+}
+struct Explanation {
+    span: Range<usize>,
+    message: String,
+    edit: Option<Edit>,
+}
+impl Explanation {
+    fn new(span: Range<usize>, message: impl Into<String>, edit: Option<Edit>) -> Self {
+        Self {
+            span,
+            message: message.into(),
+            edit,
+        }
+    }
+}
+
+struct Applied {
+    source: Range<usize>,
+    output: Range<usize>,
+}
+fn apply(input: &str, explanations: &[Explanation]) -> (String, Vec<Applied>) {
+    let mut edits: Vec<_> = explanations.iter().filter_map(|e| e.edit.clone()).collect();
+    edits.sort_by_key(|edit| (edit.span.start, edit.span.end));
+    let mut output = String::new();
+    let mut mapping = vec![];
+    let mut at = 0;
+    for edit in edits {
+        if edit.span.start < at {
+            continue;
+        }
+        output.push_str(&input[at..edit.span.start]);
+        let start = output.len();
+        output.push_str(&edit.text);
+        mapping.push(Applied {
+            source: edit.span.clone(),
+            output: start..output.len(),
+        });
+        at = edit.span.end;
+    }
+    output.push_str(&input[at..]);
+    (output, mapping)
+}
+fn original(offset: usize, mapping: &[Applied], end: bool) -> usize {
+    let mut source_end = 0;
+    let mut output_end = 0;
+    for edit in mapping {
+        if offset < edit.output.start || (end && offset == edit.output.start) {
+            break;
+        }
+        if offset < edit.output.end {
+            return edit.source.start;
+        }
+        source_end = edit.source.end;
+        output_end = edit.output.end;
+    }
+    source_end + offset.saturating_sub(output_end)
+}
+fn overlaps(a: &Range<usize>, b: &Range<usize>) -> bool {
+    a.start <= b.end && b.start <= a.end
+}
+fn add(issues: &mut Vec<Explanation>, issue: Explanation) {
+    if issue.edit.is_some() && issues.iter().any(|old| old.edit == issue.edit) {
+        return;
+    }
+    if issues
+        .iter()
+        .any(|old| old.span == issue.span && old.message == issue.message)
+    {
+        return;
+    }
+    issues.push(issue);
+}
 
 fn trivia(input: &[u8], mut at: usize) -> Option<usize> {
     loop {
@@ -126,45 +215,75 @@ pub(crate) fn present(input: &str, root: Node<'_>, parser: &mut Parser) -> Vec<I
     if !root.has_error() {
         return Vec::new();
     }
-    let mut insertions: Vec<_> = descendants(root, "module_header")
-        .into_iter()
-        .filter_map(|header| missing_header_semicolon(input, header))
-        .take(16)
-        .collect();
-    insertions.sort_unstable();
-    insertions.dedup();
-    if insertions.is_empty() {
+    let lexed = lex::scan(input);
+    let mut explanations = vec![];
+    for issue in lexed.issues {
+        add(&mut explanations, issue);
+    }
+    for header in descendants(root, "module_header").into_iter().take(32) {
+        if let Some(at) = missing_header_semicolon(input, header) {
+            add(
+                &mut explanations,
+                Explanation::new(
+                    at..at,
+                    "Missing `;` after module header",
+                    Some(Edit::insert(at, ";")),
+                ),
+            );
+        }
+    }
+    for issue in semicolons::explain(input, &lexed.tokens, parser, lexed.opaque_tail.is_none()) {
+        add(&mut explanations, issue);
+    }
+    for issue in semicolons::initializers(input, &lexed.tokens, parser) {
+        add(&mut explanations, issue);
+    }
+    for issue in expressions::explain(input, &lexed.tokens) {
+        add(&mut explanations, issue);
+    }
+    for issue in structure::explain(input, &lexed.tokens, lexed.opaque_tail) {
+        add(&mut explanations, issue);
+    }
+    explanations.truncate(64);
+    if explanations.is_empty() {
         return collect(input, root);
     }
 
-    // Parse a diagnostic-only header repair to avoid blaming the next declaration
-    // for the missing terminator. Map every remaining error back to source bytes.
-    // No repaired tree is used by completion, navigation, rename, or formatting.
-    let mut repaired = input.to_owned();
-    for at in insertions.iter().rev() {
-        repaired.insert(*at, ';');
-    }
-    let Some(tree) = parser.parse(repaired.as_bytes(), None) else {
-        return collect(input, root);
-    };
-    let original = |offset: usize| {
-        offset
-            - insertions
-                .iter()
-                .enumerate()
-                .take_while(|(i, at)| **at + i < offset)
-                .count()
-    };
-    let mut result: Vec<_> = insertions
+    // Recovery edits exist only in this diagnostic presentation. The real CST,
+    // raw errors, completion, navigation and formatter never consume this text.
+    let (repaired, mapping) = apply(input, &explanations);
+    let remaining = parser
+        .parse(repaired.as_bytes(), None)
+        .map(|tree| collect(&repaired, tree.root_node()))
+        .unwrap_or_else(|| collect(input, root));
+    let mut result: Vec<_> = explanations
         .iter()
-        .map(|at| (*at..*at, "Missing `;` after module header".into()))
+        .map(|e| (e.span.clone(), e.message.clone()))
         .collect();
-    result.extend(
-        collect(&repaired, tree.root_node())
-            .into_iter()
-            .map(|(span, message)| (original(span.start)..original(span.end), message)),
-    );
+    for (span, message) in remaining {
+        let mapped = original(span.start, &mapping, false)..original(span.end, &mapping, true);
+        if lexed.opaque_tail.is_some_and(|at| mapped.end >= at) {
+            continue;
+        }
+        // Prefer a specific explanation over a cascade covering the same region.
+        if message.starts_with("Incomplete or unrecognized")
+            && explanations.iter().any(|e| overlaps(&mapped, &e.span))
+        {
+            continue;
+        }
+        if !result
+            .iter()
+            .any(|(span, old)| *span == mapped && *old == message)
+        {
+            result.push((mapped, message));
+        }
+    }
     result.sort_by_key(|(span, _)| span.start);
     result.truncate(100);
     result
+}
+
+pub(crate) fn module_body_at(input: &str) -> bool {
+    let lexed = lex::scan(input);
+    structure::module_body(input, &lexed.tokens, lexed.opaque_tail.is_some())
 }

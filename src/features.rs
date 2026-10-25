@@ -3,7 +3,10 @@ use crate::{
     text::{self, Encoding},
     workspace::{Target, Workspace},
 };
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 use tower_lsp::lsp_types::*;
 
 pub fn symbol_kind(kind: Kind) -> SymbolKind {
@@ -370,10 +373,15 @@ impl Workspace {
                 .modules
                 .iter()
                 .any(|m| doc.symbols[m.symbol].child_scope == Some(scope));
+        let recovery_context =
+            doc.errors.is_empty() || doc.module_body_at(start, &self.project.config.defines);
+        if !recovery_context {
+            module_context = false;
+        }
         // A bare partially typed module name can turn the entire enclosing module
         // into ERROR. Probe only this prefix as whitespace to recover its context;
         // never use the probe as a declaration/signature or publish its diagnostics.
-        if !module_context && lead.trim().is_empty() && !doc.errors.is_empty() {
+        if !module_context && recovery_context && lead.trim().is_empty() && !doc.errors.is_empty() {
             let mut probe = doc.text.clone();
             probe.replace_range(start..byte, &" ".repeat(byte - start));
             // A new module often has no endmodule yet. A temporary closing
@@ -823,10 +831,56 @@ impl Workspace {
     }
     pub fn diagnostics(&self, doc: &Arc<Document>, encoding: Encoding) -> Vec<Diagnostic> {
         let mut result = doc.syntax_diagnostics(encoding);
-        if !doc.errors.is_empty() {
+        if !doc.directive_errors.is_empty() {
             return result;
         }
-        for instance in &doc.instances {
+        let overlaps_error = |span: &std::ops::Range<usize>| {
+            doc.errors.iter().any(|(error, _)| {
+                if error.is_empty() {
+                    span.start <= error.start && error.start <= span.end
+                } else {
+                    error.start < span.end && span.start < error.end
+                }
+            })
+        };
+        // Scope-local declarations can be checked without resolving a simulator
+        // library. Ports/net annotations intentionally merge or coexist in AMS.
+        let mut declarations = BTreeMap::new();
+        for (id, symbol) in doc.symbols.iter().enumerate() {
+            let family = match symbol.kind {
+                Kind::Variable | Kind::Parameter | Kind::LocalParameter => 0,
+                Kind::Function => 1,
+                Kind::Branch => 2,
+                Kind::Instance => 3,
+                Kind::Module => 4,
+                _ => continue,
+            };
+            if (symbol.scope == 0 && symbol.kind != Kind::Module) || overlaps_error(&symbol.full) {
+                continue;
+            }
+            let key = (symbol.scope, family, symbol.name.as_str());
+            if let Some(first) = declarations.get(&key).copied() {
+                let first: usize = first;
+                result.push(Diagnostic {
+                    range: text::range(&doc.text, symbol.span.clone(), encoding),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: Some(NumberOrString::String("duplicate-declaration".into())),
+                    source: Some("vams-lsp".into()),
+                    message: format!("Duplicate declaration of '{}' in this scope", symbol.name),
+                    related_information: Some(vec![DiagnosticRelatedInformation {
+                        location: Location::new(
+                            doc.uri.clone(),
+                            text::range(&doc.text, doc.symbols[first].span.clone(), encoding),
+                        ),
+                        message: "First declaration is here".into(),
+                    }]),
+                    ..Default::default()
+                });
+            } else {
+                declarations.insert(key, id);
+            }
+        }
+        for instance in doc.instances.iter().filter(|i| !overlaps_error(&i.full)) {
             let modules = self.globals(&instance.target, Some(Kind::Module));
             if modules.len() != 1 {
                 continue;
@@ -847,6 +901,10 @@ impl Workspace {
                 for (name, span) in labels {
                     let message = if !used.insert(name) {
                         Some(format!("Duplicate named {kind} '{name}'"))
+                    } else if kind == "parameter"
+                        && (!target.errors.is_empty() || !target.directive_errors.is_empty())
+                    {
+                        None
                     } else if !allowed.iter().any(|i| target.symbols[*i].name == *name) {
                         Some(format!(
                             "Unknown {kind} '{name}' on module '{}'",

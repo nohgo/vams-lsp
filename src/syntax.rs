@@ -496,7 +496,7 @@ impl Document {
                     }
                 }
             }
-            "module_instantiation" => {
+            "module_instantiation" | "udp_instantiation" => {
                 if let Some(target) = children(node).first().copied().and_then(ident) {
                     let parameters = descendants(node, "named_parameter_assignment")
                         .into_iter()
@@ -514,7 +514,7 @@ impl Document {
                         .map(|n| n.byte_range());
                     for instance in children(node)
                         .into_iter()
-                        .filter(|n| n.kind() == "hierarchical_instance")
+                        .filter(|n| matches!(n.kind(), "hierarchical_instance" | "udp_instance"))
                     {
                         if let Some(name) = descendants(instance, "name_of_instance")
                             .first()
@@ -634,6 +634,10 @@ impl Document {
                 ..Diagnostic::default()
             })
             .collect()
+    }
+    pub(crate) fn module_body_at(&self, byte: usize, defines: &BTreeMap<String, String>) -> bool {
+        let (input, _) = preprocess(&self.text, defines);
+        crate::diagnostics::module_body_at(&input[..byte])
     }
     pub fn opaque_at(&self, byte: usize) -> bool {
         let n = self

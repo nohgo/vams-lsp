@@ -17,9 +17,8 @@ SystemVerilog frontend. No Cadence installation or simulator license is required
 - Declaration hover, document/workspace symbols, scope-aware references and
   document highlights, and signature help for declared analog functions.
 - Complete remaining named ports/parameters inside existing instances.
-- Live syntax diagnostics with focused missing-header-semicolon and unexpected
-  punctuation messages, malformed directive checks, and conservative unknown
-  or duplicate named-connection warnings.
+- Common digital/analog syntax explanations, scoped duplicate declarations and
+  conservative named-connection checks; source-mapped recovery reduces cascades.
 - Versioned unsaved documents, bounded background indexing, periodic external-file
   refresh, root inspection, and data-only project configuration.
 - Restricted, capture-checked rename for function-local symbols, using versioned
@@ -125,19 +124,23 @@ Templates require snippet support and a standalone line; completing a keyword
 inside an existing statement leaves it as a word, so an existing block is not
 duplicated. Clients without snippet support retain plain keyword completion.
 
-### What syntax diagnostics can explain
+### Offline diagnostics
 
-Deleting a module header's semicolon produces `Missing ; after module header`
-at that header, including ANSI ports and parameterized headers. Isolated extra
-commas/closing delimiters get `Unexpected ,`-style messages. Parser-provided
-missing tokens are named directly. Other malformed or unsupported constructs
-retain the generic syntax message.
+The server checks common digital and analog mistakes: missing semicolons across
+statements/declarations, block endings and delimiters, empty/missing expressions,
+unterminated text, and common analog assignment/contribution mistakes. It also
+checks reliable duplicate declarations and named connections. Healthy regions
+remain useful when another region has syntax errors.
 
-The LSP fork reuses Veridian's protocol foundation. Veridian's detailed checks
-used SystemVerilog tools such as Slang, Verible or Verilator; those engines are
-not an AMS compiler and are not bundled here. The focused explanations operate
-on the AMS parser's results. They do not establish semantic/compiler correctness;
-use the independent Cadence integration for those checks.
+For example, `electrical p` without its terminator reports a missing declaration
+semicolon; `I(p,n) <+ ;` reports the missing expression; and an unclosed analog
+block reports the missing `end` before `endmodule`. See the [coverage, examples,
+verification and limits](docs/DIAGNOSTICS.md).
+
+These checks are independent of Cadence. They are not a complete compiler or
+elaborator; unknown/ambiguous constructs retain a generic fallback. Veridian's
+original detailed checks used SystemVerilog tools; this fork implements the
+AMS-specific layer over the shared grammar.
 
 ## Project roots and configuration
 
@@ -244,7 +247,7 @@ files are archived in `vendor/veridian/`. The Tower LSP lifecycle/backend and
 completion-helper patterns are adapted; its SV parser and external engines are
 replaced with the suite's pinned AMS grammar and a scope-aware project index.
 The grammar dependency is pinned to
-`0b2672e76ff2941fb62081b5d42b0ae84a0f6c46` with Tree-sitter 0.26.13.
+`92c803343d0e2f79475b28558655f6fbe207cebb` with Tree-sitter 0.26.13.
 
 See [architecture](docs/ARCHITECTURE.md), [features/limits](docs/FEATURES.md), and
 the original [Veridian project](https://github.com/vivekmalneedi/veridian).

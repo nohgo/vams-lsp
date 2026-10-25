@@ -12,5 +12,5 @@ fetch() {
 }
 fetch blink.cmp https://github.com/saghen/blink.cmp.git 78336bc89ee5365633bcf754d93df01678b5c08f
 fetch LuaSnip https://github.com/L3MON4D3/LuaSnip.git 642b0c595e11608b4c18219e93b88d7637af27bc
-fetch tree-sitter-verilog-ams https://github.com/nohgo/tree-sitter-verilog-ams.git 0b2672e76ff2941fb62081b5d42b0ae84a0f6c46
+fetch tree-sitter-verilog-ams https://github.com/nohgo/tree-sitter-verilog-ams.git 92c803343d0e2f79475b28558655f6fbe207cebb
 fetch cadence.nvim https://github.com/nohgo/cadence.nvim.git a342689256906fb9957a22353a8e804b7747f583
