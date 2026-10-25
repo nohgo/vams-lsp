@@ -71,6 +71,27 @@ class RPC:
             self.notifications.append(item)
         raise TimeoutError(method)
 
+    def diagnostics(self, path, version):
+        """Diagnostics are asynchronous; a request response is not a publish fence."""
+        uri = path.as_uri()
+        deadline = time.monotonic() + 8
+        while True:
+            for item in reversed(self.notifications):
+                if item.get('method') == 'textDocument/publishDiagnostics':
+                    params = item['params']
+                    if params['uri'] == uri and params.get('version') == version:
+                        return params['diagnostics']
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f'diagnostics for {uri} version {version}')
+            try:
+                item = self.messages.get(timeout=remaining)
+            except queue.Empty as exc:
+                raise TimeoutError(f'diagnostics for {uri} version {version}') from exc
+            if isinstance(item, Exception):
+                raise item
+            self.notifications.append(item)
+
     def ready(self, count=1):
         for _ in range(100):
             info = self.request('workspace/executeCommand', {'command': 'vams.showProjectInfo'})
@@ -144,8 +165,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertTrue(any(s['name'] == 'resistor' for s in self.rpc.request('workspace/symbol', {'query': 'res'})))
         # Repairing input clears syntax errors for version 2; other sources are untouched.
         self.rpc.request('workspace/executeCommand', {'command': 'vams.showProjectInfo'})
-        notifications = [n['params'] for n in self.rpc.notifications if n.get('method') == 'textDocument/publishDiagnostics']
-        self.assertTrue(any(n['uri'] == self.top.as_uri() and n.get('version') == 2 and not n['diagnostics'] for n in notifications))
+        self.assertEqual([], self.rpc.diagnostics(self.top, 2))
 
     def test_completion_in_module_without_endmodule(self):
         self.rpc.open(self.top, 'module test2;\nresist\n')
@@ -159,17 +179,12 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual({'line': 1, 'character': 6}, item['textEdit']['range']['end'])
         # The context-only probe never hides the actual incomplete source error.
         self.rpc.request('workspace/executeCommand', {'command': 'vams.showProjectInfo'})
-        diagnostics = [n['params'] for n in self.rpc.notifications
-                       if n.get('method') == 'textDocument/publishDiagnostics']
-        self.assertTrue(any(n['uri'] == self.top.as_uri() and n['diagnostics'] for n in diagnostics))
+        self.assertTrue(self.rpc.diagnostics(self.top, 1))
 
     def test_specific_syntax_diagnostics_and_keyword_templates(self):
         self.rpc.open(self.top, 'module test\n electrical p,,n;\nendmodule\n')
         self.rpc.request('textDocument/documentSymbol', {'textDocument': {'uri': self.top.as_uri()}})
-        reports = [n['params']['diagnostics'] for n in self.rpc.notifications
-                   if n.get('method') == 'textDocument/publishDiagnostics'
-                   and n['params']['uri'] == self.top.as_uri()]
-        diagnostics = reports[-1]
+        diagnostics = self.rpc.diagnostics(self.top, 1)
         messages = {d['message'] for d in diagnostics}
         self.assertEqual({'Missing `;` after module header', 'Unexpected `,`'}, messages)
         header = next(d for d in diagnostics if d['message'].startswith('Missing'))
@@ -186,18 +201,13 @@ class ProtocolTests(unittest.TestCase):
     def test_common_analog_errors_and_versioned_repair(self):
         self.rpc.open(self.top, 'module top;\n electrical p\n analog begin\n V(p)=;\nendmodule\n')
         self.rpc.request('textDocument/documentSymbol', {'textDocument': {'uri': self.top.as_uri()}})
-        reports = [n['params'] for n in self.rpc.notifications if n.get('method') == 'textDocument/publishDiagnostics'
-                   and n['params']['uri'] == self.top.as_uri()]
-        messages = [d['message'] for d in reports[-1]['diagnostics']]
+        messages = [d['message'] for d in self.rpc.diagnostics(self.top, 1)]
         for expected in ['Missing `;` after declaration', 'Use `<+`', 'Missing expression after `=`', 'Missing `end`']:
             self.assertTrue(any(expected in message for message in messages), messages)
-        self.assertEqual(1, reports[-1]['version'])
         self.rpc.notify('textDocument/didChange', {'textDocument': {'uri': self.top.as_uri(), 'version': 2},
                          'contentChanges': [{'text': 'module top; electrical p; analog begin V(p)<+1; end endmodule'}]})
         self.rpc.request('workspace/executeCommand', {'command': 'vams.showProjectInfo'})
-        reports = [n['params'] for n in self.rpc.notifications if n.get('method') == 'textDocument/publishDiagnostics'
-                   and n['params']['uri'] == self.top.as_uri() and n['params'].get('version') == 2]
-        self.assertTrue(any(not n['diagnostics'] for n in reports), reports)
+        self.assertEqual([], self.rpc.diagnostics(self.top, 2))
 
     def test_refresh_file_changes_invalid_config_and_eof(self):
         extra = self.root / 'extra.va'
